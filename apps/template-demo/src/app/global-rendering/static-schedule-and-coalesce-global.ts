@@ -1,6 +1,4 @@
-import { from } from 'rxjs';
-import { staticCoalesce } from '@rx-angular/template';
-import { globalTaskManager, GlobalTaskPriority } from './global-task-manager';
+import { globalTaskManager, GlobalTaskPriority, GlobalTaskScope } from './global-task-manager';
 
 export function coalesceAndScheduleGlobal(
     work: () => void,
@@ -8,28 +6,12 @@ export function coalesceAndScheduleGlobal(
     scope: object = {},
     abC: AbortController = new AbortController()
 ): AbortController {
-    const durationSelector = from(Promise.resolve());
-
-    const scheduledWork = () => staticScheduleGlobal(work, priority, abC);
-
-    const coalesceAbC = staticCoalesce(
-        scheduledWork,
-        durationSelector,
-        scope,
-        abC
-    );
-
-    const abortHandler = function() {
-        coalesceAbC.abort();
-        abC.signal.removeEventListener('abort', abortHandler, false);
-    };
-    abC.signal.addEventListener('abort', abortHandler, false);
-
-    return abC;
+    return staticScheduleGlobal(work, scope, priority, abC);
 }
 
 function staticScheduleGlobal(
     task: () => void,
+    scope: GlobalTaskScope,
     priority: GlobalTaskPriority,
     abC: AbortController = new AbortController()
 ): AbortController {
@@ -39,6 +21,7 @@ function staticScheduleGlobal(
                 task();
             }
         },
+        scope,
         priority
     };
     globalTaskManager.scheduleTask(scheduledWork);
