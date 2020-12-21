@@ -18,6 +18,15 @@ interface RxIteratorContext<C> {
 
 }
 
+export interface RxForOfComputedViewContext {
+  index: number;
+  //count: number;
+  //first: boolean;
+ // last: boolean;
+  odd: boolean;
+  even: boolean;
+}
+
 interface RxViewContainerRef<C> {
   embeddedViewChanged$: Observable<EmbeddedViewRef<C>>;
 
@@ -97,31 +106,34 @@ export function createViewContainerRef<T>(config: {
   // Nothing special as we just remove + vCR
   // const removes$ = changes$.pipe(removedItemToObservable()) as Observable<IterableChangeRecord<T>>;
   // Update Context of EmbeddedView + vCR
-//  const moves$ = changes$.pipe(movedItemToObservable()) as Observable<IterableChangeRecord<T>>;
+  //  const moves$ = changes$.pipe(movedItemToObservable()) as Observable<IterableChangeRecord<T>>;
 
   // Update Context of EmbeddedView
   const strategy$: Observable<any>;
   const updates$ = changes$.pipe() as Observable<IterableChangeRecord<T>>;
 
   const domStructureChange2$ = changes$.pipe(
+   // array
     map((change) => {
       let count = 0;
       const works = {
         insert: forEachInsertToArray(change)
           .map(record => {
             ++count;
-            const context = createViewContext(record);
+            const context = createViewContext(record, []);
             return {
-              record,
+              ev: {},
+              index: record.previousIndex,
               context,
-              work: () => insertEmbeddedView(context)
+              work: () => insertEmbeddedView(context, [])
             };
           }),
         move: forEachMoveToArray(change)
           .map(record => {
             const ev = viewContainerRef.get(record.previousIndex);
             return {
-              record,
+              ev,
+              index: record.previousIndex,
               context: (ev as any).context,
               work: () => viewContainerRef.move(ev, record.currentIndex)
             };
@@ -130,7 +142,16 @@ export function createViewContainerRef<T>(config: {
           .map(record => {
             --count;
             return {
-              record,
+              ev: {},
+              index: record.previousIndex,
+              work: () => viewContainerRef.remove(record.previousIndex)
+            };
+          }),
+        update: forEachUpdateToArray(change)
+          .map(record => {
+            return {
+              ev: viewContainerRef.get(record.previousIndex),
+              index: record.previousIndex,
               work: () => viewContainerRef.remove(record.previousIndex)
             };
           })
@@ -140,48 +161,6 @@ export function createViewContainerRef<T>(config: {
         works
       };
     })
-  );
-
-
-  const domStructureChange$ = changes$.pipe(
-    (c$) => {
-      let count = 0;
-      return merge(
-        // Create Context of EmbeddedView + vCR
-        c$.pipe(
-          addedItemToObservable(),
-          map((record: IterableChangeRecord<T>) => {
-            ++count;
-            return () => insertEmbeddedView(createViewContext(record));
-          })
-        ),
-        // Nothing special as we just remove + vCR
-        c$.pipe(
-          removedItemToObservable(),
-          map((record: IterableChangeRecord<T>) => () => viewContainerRef.remove(record.previousIndex))
-        ),
-        // Update Context of EmbeddedView + vCR
-        c$.pipe(
-          movedItemToObservable(),
-          map((record: IterableChangeRecord<T>) => () => {
-            viewContainerRef.move(viewContainerRef.get(record.previousIndex), record.currentIndex);
-          })
-        )
-      );
-    }
-  );
-
-  const eVChange$ = changes$.pipe(
-    (c$) => {
-      return c$.pipe(
-        identityChangeToObservable<T>(),
-        switchMap((record: IterableChangeRecord<T>) => {
-          const ev = viewContainerRef.get(record.currentIndex);
-          // @TODO use publish
-          return strat.work(ev);
-        })
-      );
-    }
   );
 
   const update = domStructureChange2$.pipe(
