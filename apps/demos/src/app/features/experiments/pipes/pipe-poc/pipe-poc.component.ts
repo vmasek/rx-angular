@@ -16,7 +16,7 @@ import { debounceTime, distinctUntilChanged, map, share, switchMapTo } from 'rxj
         <div class="mat-headline">
           toRandom
         </div>
-        <div> {{ value$ | pipe:toRandom | push}}</div>
+        <div> {{ value$ | pipe:toRandom | push }}</div>
       </div>
       <div class="col-4">
         <div class="mat-headline">

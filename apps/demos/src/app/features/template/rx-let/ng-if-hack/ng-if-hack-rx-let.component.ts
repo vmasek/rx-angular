@@ -9,6 +9,28 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
         <rxa-value-provider [unpatched]="false" [buttons]="true" #valP="rxaValueProvider"></rxa-value-provider>
       </div>
 
+
+      <ng-container *rxLet="valP.boolean$; let value;
+            rxSuspense: suspenseView;
+               rxError: errorView;
+               rxComplete: completeView
+        ">
+        value: {{ value | json }}<br/>
+      </ng-container>
+
+      <ng-template #suspenseView>
+        <rxa-list-item-ghost></rxa-list-item-ghost>
+      </ng-template>
+
+      <ng-template #errorView>
+        <mat-icon color="warn">delete</mat-icon>
+      </ng-template>
+
+      <ng-template #completeView>
+        <mat-icon color="primary">check</mat-icon>
+      </ng-template>
+
+      <!--
       <ng-container *rxLet="valP.boolean$; let value;
                rxSuspense: suspenseView;
                rxError: errorView;
@@ -28,6 +50,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
       <ng-template #completeView>
         <mat-icon color="primary">check</mat-icon>
       </ng-template>
+      -->
 
     </rxa-visualizer>
   `,

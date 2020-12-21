@@ -16,22 +16,13 @@ import {
   ViewContainerRef
 } from '@angular/core';
 
-import {
-  concat,
-  forkJoin,
-  Observable,
-  ObservableInput,
-  of,
-  ReplaySubject,
-  Subject,
-  Subscription
-} from 'rxjs';
+import { forkJoin, Observable, ObservableInput, of, ReplaySubject, Subject, Subscription } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
   filter,
   map,
-  shareReplay, skip,
+  shareReplay,
   switchAll,
   switchMap,
   take,
@@ -92,11 +83,13 @@ export class RxForOf<T, U extends NgIterable<T> = NgIterable<T>>
   @Input('rxForStrategy') set strategy(strategy: string) {
     this._strategy = strategy;
   }
+
   get strategy(): string {
     return this._strategy || this.defaultStrategyName;
   }
 
   private _trackByFn;
+
   @Input()
   set rxForTrackBy(fn: TrackByFunction<T>) {
     this._trackByFn = fn;
@@ -115,7 +108,8 @@ export class RxForOf<T, U extends NgIterable<T> = NgIterable<T>>
     private readonly templateRef: TemplateRef<RxForViewContext<T, U>>,
     private readonly viewContainerRef: ViewContainerRef,
     private iterableDiffers: IterableDiffers
-  ) {}
+  ) {
+  }
 
   initDiffer(iterable: U = [] as U) {
     this.differ = this.iterableDiffers
@@ -130,18 +124,30 @@ export class RxForOf<T, U extends NgIterable<T> = NgIterable<T>>
         this.initDiffer(values || ([] as any));
       })
     );*/
+    const changes$: Observable<IterableChanges<T>> = this.values$.pipe(
+      map(i => this.differ.diff(i)),
+      filter((changes: IterableChanges<T>) => !!changes)
+    );
+
     this.sub.add(
       this.values$.pipe(
-          map(i => this.differ.diff(i)),
-          filter(diff => !!diff),
-          switchMap(diff => this.applyChanges(diff).pipe(
-            catchError(e => {
-              console.error(e);
-              return of(null);
-            })
-          )),
-          tap(this?._renderCallback)
-        )
+        map(i => this.differ.diff(i)),
+        filter(diff => !!diff),
+        switchMap(diff => this.applyChanges(diff).pipe(
+          catchError(e => {
+            console.error(e);
+            return of(null);
+          })
+        )),
+        tap(this?._renderCallback)
+      )
+        .subscribe()
+    );
+
+    this.sub.add(
+      changes$.pipe(
+        addedItemToObservable()
+      )
         .subscribe()
     );
   }
@@ -195,10 +201,8 @@ export class RxForOf<T, U extends NgIterable<T> = NgIterable<T>>
         behaviors$.push(insert);
       }
     };
-    const updateMap = new WeakMap<
-      EmbeddedViewRef<any>,
-      ((context: RxForViewContext<T, U>) => void)[]
-      >();
+    const updateMap = new WeakMap<EmbeddedViewRef<any>,
+      ((context: RxForViewContext<T, U>) => void)[]>();
     const scheduleUpdate = (
       idx: number,
       update: (context: RxForViewContext<T, U>) => void
@@ -344,3 +348,52 @@ export class RxForOf<T, U extends NgIterable<T> = NgIterable<T>>
     }
   }
 }
+
+function operationsToObservable<T>() {
+  return (changes) => new Observable((subscriber) => {
+    changes.forEachOperation(
+      (
+        record: IterableChangeRecord<T>,
+        previousIndex: number | null,
+        currentIndex: number | null
+      ) => {
+        subscriber.next({ record, previousIndex, currentIndex });
+      });
+  });
+}
+
+
+function addedItemToObservable<T>() {
+  return (changes) => new Observable((subscriber) => {
+    changes.forEachAddedItem((record: IterableChangeRecord<T>) => {
+        subscriber.next(record);
+    });
+  });
+}
+
+function identityChangeToObservable<V>() {
+  return (changes) => new Observable((subscriber) => {
+    changes.forEachIdentityChange((record: IterableChangeRecord<V>) => {
+      subscriber.next(record);
+    });
+  });
+}
+
+function movedItemToObservable<T>() {
+  return (changes) => new Observable((subscriber) => {
+    changes.forEachMovedItem((record: IterableChangeRecord<T>) => {
+      subscriber.next(record);
+    });
+  });
+}
+
+function removedItemToObservable<T>() {
+  return (changes) => new Observable((subscriber) => {
+    changes.forEachRemovedItem((record: IterableChangeRecord<T>) => {
+      subscriber.next(record);
+    });
+  });
+}
+
+
+
